@@ -1,23 +1,51 @@
-from sqlmodel import SQLModel, Session, create_engine
-from models.events import Event
 
-# Настройки базы данных
-database_file = "planner.db"
-database_connection_string = f"sqlite:///{database_file}"
-connect_args = {"check_same_thread": False}
+from typing import Any, List, Optional
+from pydantic import BaseModel
+import uuid
 
-# Создаём движок базы данных
-engine_url = create_engine(
-    database_connection_string,
-    echo=True,
-    connect_args=connect_args
-)
+# Временный Database класс для теста без реального MongoDB
+class Database:
+    def __init__(self, model):
+        self.model = model
+        self.data = {}  # имитируем базу данных в памяти
+    
+    # CREATE - создание записи
+    async def save(self, document) -> None:
+        doc_id = str(uuid.uuid4())
+        document.id = doc_id  # добавляем ID документу
+        self.data[doc_id] = document
+        return
+    
+    # READ - получение одной записи по ID
+    async def get(self, id: str) -> Any:
+        return self.data.get(id, False)
+    
+    # READ ALL - получение всех записей
+    async def get_all(self) -> List[Any]:
+        return list(self.data.values())
+    
+    # UPDATE - обновление записи
+    async def update(self, id: str, body: BaseModel) -> Any:
+        if id not in self.data:
+            return False
+        
+        doc = self.data[id]
+        update_data = body.dict(exclude_unset=True)
+        
+        for key, value in update_data.items():
+            setattr(doc, key, value)
+        
+        self.data[id] = doc
+        return doc
+    
+    # DELETE - удаление записи
+    async def delete(self, id: str) -> bool:
+        if id not in self.data:
+            return False
+        del self.data[id]
+        return True
 
-def conn():
-    """Создаёт все таблицы в базе данных"""
-    SQLModel.metadata.create_all(engine_url)
-
-def get_session():
-    """Генератор сессий для зависимостей"""
-    with Session(engine_url) as session:
-        yield session
+# Заглушка для инициализации базы данных
+async def init_db():
+    print("✅ База данных инициализирована (работаем в режиме заглушки)")
+    return
